@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحدي البريميرليج </title>
+    <!-- استدعاء خط تاجوال للتصميم العربي الأنيق -->
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- استدعاء مكتبات Firebase الإصدار 9 (Modular SDK) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+        // ضع إعدادات مشروعك الحقيقية هنا
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // اسم الكولكشن الخاص بهذه اللعبة حصرياً
+        const COLLECTION_NAME = "epl_quiz_scores";
+
+        // بنك الأسئلة الشامل (50 سؤالاً كاملاً)
+        const allQuestions = [
+            { q: "من هو الهداف التاريخي للدوري الإنجليزي الممتاز (البريميرليج)؟", options: ["وين روني", "ألان شيرر", "سرخيو أغويرو", "هاري كين"], answer: 1 },
+            { q: "أي فريق حقق لقب البريميرليج بدون أي هزيمة موسم 2003-2004؟", options: ["مانشستر يونايتد", "تشيلسي", "أرسنال", "مانشستر سيتي"], answer: 2 },
+            { q: "ما هو النادي الأكثر تتويجاً بلقب الدوري الإنجليزي الممتاز تاريخياً؟", options: ["ليفربول", "مانشستر يونايتد", "مانشستر سيتي", "تشيلسي"], answer: 1 },
+            { q: "من هو اللاعب الأكثر صناعة للأهداف (Assists) في تاريخ البريميرليج؟", options: ["فرانك لامبارد", "كيفين دي بروين", "رايان غيغز", "سيسبر فابريغاس"], answer: 2 },
+            { q: "أي حارس مرمى يحمل الرقم القياسي لأكثر عدد من الشباك النظيفة (Clean Sheets) في البريميرليج؟", options: ["بيتر تشيك", "ديفيد دي خيا", "إيدرسون", "بيتر شمايكل"], answer: 0 },
+            { q: "النادي الوحيد الذي هبط للدرجة الأدنى بعد تحقيقه لقب البريميرليج في موسم سابق (بنظامه الحديث والقديم)؟", options: ["بلاكبيرن روفرز", "ليستر سيتي", "إبسويتش تاون", "لا يوجد"], answer: 0 },
+            { q: "من هو المدرب الأكثر فوزاً ببطولة الدوري الإنجليزي الممتاز؟", options: ["أرسين فينغر", "بيب غوارديولا", "السير أليكس فيرجسون", "جوزيه مورينيو"], answer: 2 },
+            { q: "أي فريق سجل أكبر عدد من النقاط في موسم واحد بتاريخ البريميرليج (100 نقطة)؟", options: ["ليفربول", "مانشستر يونايتد", "مانشستر سيتي", "تشيلسي"], answer: 2 },
+            { q: "من هو أول لاعب يصل إلى 100 هدف في البريميرليج؟", options: ["آلان شيرر", "إيان رايت", "تيدي شيرينغهام", "روبي فاولر"], answer: 1 },
+            { q: "في أي عام انطلق رسميًا نظام الدوري الإنجليزي الممتاز (Premier League)؟", options: ["1990", "1992", "1995", "1988"], answer: 1 },
+            { q: "أي فريق فاز بلقب البريميرليج معجزةً موسم 2015-2016 بنسبة ترشيح 5000 لـ 1؟", options: ["توتنهام", "ليستر سيتي", "إيفرتون", "وست هام يونايتد"], answer: 1 },
+            { q: "من هو اللاعب الذي سجل أسرع هدف في تاريخ البريميرليج (خلال 7.69 ثانية)؟", options: ["شين لونغ", "كريستيان إريكسن", "ألان شيرر", "سيرجيو أغويرو"], answer: 0 },
+            { q: "أي نادي الأكثر تسجيلاً للأهداف في موسم واحد بتاريخ البريميرليج (106 أهداف)؟", options: ["ليفربول", "مانشستر سيتي", "تشيلسي", "مانشستر يونايتد"], answer: 1 },
+            { q: "من هو اللاعب الأكثر تسجيلاً للهاتريك (Hat-tricks) في تاريخ البريميرليج؟", options: ["سرخيو أغويرو", "هاري كين", "ألان شيرر", "تييري هنري"], answer: 2 },
+            { q: "أي فريق حقق أدنى عدد من النقاط في موسم واحد بتاريخ البريميرليج (11 نقطة)؟", options: ["ديربي كاونتي", "أستون فيلا", "نورويتش سيتي", "سندرلاند"], answer: 0 },
+            { q: "من هو اللاعب الذي سجل 5 أهداف في مباراة واحدة (بنتاساكت) لصالح مانشستر سيتي في 20 دقيقة؟", options: ["سرخيو أغويرو", "جيرمان ديففو", "ديميتار برباتوف", "آندي كول"], answer: 0 },
+            { q: "ما هو الفريق الذي تلقى أقل عدد من الأهداف في موسم واحد بتاريخ البريميرليج (15 هدفاً فقط)؟", options: ["مانشستر يونايتد", "تشيلسي (2004-2005)", "أرسنال", "ليفربول"], answer: 1 },
+            { q: "من هو أكثر لاعب مشاركة في مباريات بتاريخ البريميرليج؟", options: ["ريان غيغز", "جيمس ميلنر", "غاريث باري", "فرانك لامبارد"], answer: 2 },
+            { q: "أي نادٍ لم يهبط أبداً من الدوري الإنجليزي الممتاز منذ انطلاقته بصيغته الحالية؟", options: ["توتنهام", "أرسنال", "مانشستر يونايتد", "جميع ما سبق (ضمن الأندية المؤسسة ولم تهبط طوال تاريخ البريميرليج)"], answer: 3 },
+            { q: "من هو المدرب الأجنبي الوحيد الذي فاز بالبريميرليج دون أي هزيمة (اللازخيم)؟", options: ["بيب غوارديولا", "أرسين فينغر", "كارلو أنشيلوتي", "يورغن كلوب"], answer: 1 },
+            { q: "كم عدد الأندية التي تشارك في موسم واحد في بطولة الدوري الإنجليزي الممتاز؟", options: ["18 نادياً", "20 نادياً", "22 نادياً", "24 نادياً"], answer: 1 },
+            { q: "من هو اللاعب الذي سجل أطول هدف من منتصف الملعب في تاريخ البريميرليج؟", options: ["ديفيد بيكهام", "تشابي ألونسو", "واين روني", "تشارلي آدم"], answer: 3 },
+            { q: "أي من هؤلاء اللاعبين لم يسجل أكثر من 200 هدف في البريميرليج؟", options: ["فرانك لامبارد", "سرخيو أغويرو", "تييري هنري", "روبي فاولر"], answer: 3 },
+            { q: "ما هو النادي الذي يلقب بـ 'الشياطين الحمر' (Red Devils)؟", options: ["ليفربول", "مانشستر يونايتد", "كريستال بالاس", "برينتفورد"], answer: 1 },
+            { q: "ملعب أنفيلد (Anfield) هو الملعب الرئيسي لأي فريق؟", options: ["إيفرتون", "ليفربول", "نادي إيفرتون", "نادي فولهام"], answer: 1 },
+            { q: "ملعب أولد ترافورد يلقب بـ ماذا؟", options: ["مسرح الأحلام", "قلعة السعادة", "الأنفيلد رود", "الإمارات"], answer: 0 },
+            { q: "من هو الحارس الأكثر تسجيلًا للأهداف من ركلات جزاء في تاريخ البريميرليج؟", options: ["بيتر تشيك", "بيتر شمايكل", "بول روبنسون", "تيم هاوارد"], answer: 1 },
+            { q: "أي فريق حقق لقب البريميرليج موسم 2022-2023؟", options: ["أرسنال", "مانشستر سيتي", "مانشستر يونايتد", "نيوكاسل يونايتد"], answer: 1 },
+            { q: "من هو النادي اللندني الذي يلعب على ملعب 'ستامفورد بريدج'؟", options: ["أرسنال", "توتنهام", "تشيلسي", "وست هام"], answer: 2 },
+            { q: "في أي مدينة تقع أندية إيفرتون وليفربول؟", options: ["لندن", "مانشستر", "ليفربول", "برمنغهام"], answer: 2 },
+            { q: "من هو اللاعب صاحب أغلى صفقة انتقال في تاريخ البريميرليج (حتى عام 2023)؟", options: ["جاك غريليش", "مويسيس كايسيدو", "ديكلان رايس", "روميلو لوكاكو"], answer: 1 },
+            { q: "أي مدرب فاز باللقب مع ليستر سيتي المعجزة؟", options: ["كلاوديو رانييري", "بريندان رودجرز", "نايجل بيرسون", "ستيف كوبر"], answer: 0 },
+            { q: "ما هو الفريق الذي يُعرف بلقب 'الريدز' (The Reds)؟", options: ["نوتنغهام فورست", "ليفربول", "مانشستر يونايتد", "أ و ب معا"], answer: 3 },
+            { q: "من هو اللاعب الأكثر حصولاً على البطاقات الصفراء في تاريخ البريميرليج؟", options: ["غاريث باري", "لي كاتيرمول", "واين روني", "بول سكولز"], answer: 0 },
+            { q: "من هو اللاعب الأكثر حصولاً على البطاقات الحمراء (طرد) في تاريخ البريميرليج؟", options: ["باتريك فييرا", "ريتشارد دان", "دنكان فيرغسون", "جميع ما ذكر بالتساوي بواقع 8 حالات طرد"], answer: 3 },
+            { q: "أي فريق فاز بأول نسخة من الدوري الإنجليزي الممتاز موسم 1992-1993؟", options: ["بلاكبيرن روفرز", "مانشستر يونايتد", "أرسنال", "استون فيلا"], answer: 1 },
+            { q: "من هو صاحب أسرع هاتريك (ثلاثية) في تاريخ البريميرليج (خلال 2 دقيقة و56 ثانية)؟", options: ["ساديو ماني", "سرخيو أغويرو", "جيرمان ديففو", "روبي فاولر"], answer: 0 },
+            { q: "أي نادٍ لديه ملعب يدعى 'الاتحاد' (Etihad Stadium)؟", options: ["مانشستر سيتي", "ويستهام يونايتد", "أرسنال", "توتنهام"], answer: 0 },
+            { q: "من هو النادي الذي يلقب بـ 'السبيرز' (Spurs)؟", options: ["توتنهام هوتسبير", "وست هام", "كريستال بالاس", "ساوثهامبتون"], answer: 0 },
+            { q: "من هو المدرب التاريخي الذي قاد أرسنال في موسم اللاهزيمة؟", options: ["جورج غراهام", "أرسين فينغر", "أوناي إيمري", "ميكيل أرتيتا"], answer: 1 },
+            { q: "كم عدد الجولات الكلي في موسم البريميرليج الواحد؟", options: ["34 جولة", "38 جولة", "42 جولة", "46 جولة"], answer: 1 },
+            { q: "من هو اللاعب البرتغالي الأكثر تسجيلًا للأهداف في تاريخ البريميرليج؟", options: ["كريستيانو رونالدو", "برونو فيرنانديز", "ديوغو جوتا", "ناني"], answer: 0 },
+            { q: "ما هو الفريق الذي يرتدي اللون الأزرق السماوي ويقع مقره في مدينة مانشستر؟", options: ["مانشستر يونايتد", "مانشستر سيتي", "أولدهام", "بوري"], answer: 1 },
+            { q: "أي من هؤلاء لم يحقق لقب هداف البريميرليج مطلقاً؟", options: ["كيفين دي بروين", "محمد صلاح", "هاري كين", "سون هيونغ مين"], answer: 0 },
+            { q: "ما هو الفريق الذي يلقب بـ 'الماكبايز' (Magpies)؟", options: ["نيوكاسل يونايتد", "نورويتش سيتي", "واتفورد", "سوانزي سيتي"], answer: 0 },
+            { q: "من هو الفريق الذي حقق لقب البريميرليج موسم 2020-2021؟", options: ["ليفربول", "مانشستر سيتي", "تشيلسي", "مانشستر يونايتد"], answer: 1 },
+            { q: "من هو اللاعب الذي سجل هدف الفوز التاريخي لمانشستر سيتي في الدقيقة 93:20 ليحقق لقب 2012؟", options: ["إدين ديكو", "سرخيو أغويرو", "ماريو بالوتيلي", "دايفيد سيلفا"], answer: 1 },
+            { q: "ما هو اسم الكأس الرسمية التي تُمنح لبطل الدوري الإنجليزي الممتاز؟", options: ["كأس البريميرليج وتاق التاج الملكي", "كأس التاج الذهبي", "كأس بطولة الدوري الممتاز (Premier League Trophy)", "درع الاتحاد"], answer: 2 },
+            { q: "من هو الحارس الذي صنع أكبر عدد من الأهداف (Assists) في تاريخ البريميرليج؟", options: ["بيتر شمايكل", "بول روبنسون", "بيتر تشيك", "بين فوستر"], answer: 1 },
+            { q: "من هو صاحب أطول سلسلة مباريات دون هزيمة كمدرب في بداية مسيرته بالبريميرليج؟", options: ["جوزيه مورينيو", "بيتر تشيك", "بيب غوارديولا", "أنطونيو كونتي"], answer: 0 }
+        ];
+
+        let currentQuestions = [];
+        let currentIndex = 0;
+        let score = 0;
+        let wrongCount = 0;
+        let timer = null;
+        let timeLeft = 15;
+        let playerName = "";
+
+        // بدء اللعبة
+        window.startGame = function() {
+            const nameInput = document.getElementById("player-name").value.trim();
+            if(!nameInput) {
+                alert("الرجاء إدخال اسمك الكريم هنا!");
+                return;
+            }
+            playerName = nameInput;
+            document.getElementById("welcome-screen").classList.add("hidden");
+            document.getElementById("game-screen").classList.remove("hidden");
+            
+            // خلط الـ 50 سؤالاً عشوائياً لكل لاعب
+            currentQuestions = [...allQuestions].sort(() => 0.5 - Math.random());
+            currentIndex = 0;
+            score = 0;
+            wrongCount = 0;
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            clearInterval(timer);
+            
+            // شرط الانتهاء: فقط إذا أتم اللاعب جميع الأسئلة الـ 50
+            if(currentIndex >= currentQuestions.length) {
+                endGame();
+                return;
+            }
+
+            timeLeft = 15;
+            document.getElementById("time-left").innerText = timeLeft;
+            document.getElementById("current-q-num").innerText = currentIndex + 1;
+
+            const qObj = currentQuestions[currentIndex];
+            document.getElementById("question-text").innerText = qObj.q;
+
+            const optionsContainer = document.getElementById("options-container");
+            optionsContainer.innerHTML = "";
+
+            qObj.options.forEach((opt, index) => {
+                const btn = document.createElement("button");
+                btn.className = "option-btn";
+                btn.innerText = opt;
+                btn.onclick = () => selectAnswer(index, qObj.answer, btn);
+                optionsContainer.appendChild(btn);
+            });
+
+            timer = setInterval(() => {
+                timeLeft--;
+                document.getElementById("time-left").innerText = timeLeft;
+                if(timeLeft <= 0) {
+                    clearInterval(timer);
+                    handleWrongAnswer(); // انتهاء الوقت يُحسب خطأ ويكمل للسؤال التالي حتى السؤال 50
+                }
+            }, 1000);
+        }
+
+        function selectAnswer(selectedIndex, correctIndex, btnElement) {
+            clearInterval(timer);
+            const allBtns = document.querySelectorAll(".option-btn");
+            allBtns.forEach(b => b.disabled = true);
+
+            if(selectedIndex === correctIndex) {
+                btnElement.classList.add("correct");
+                score++;
+            } else {
+                btnElement.classList.add("wrong");
+                allBtns[correctIndex].classList.add("correct");
+                wrongCount++;
+            }
+
+            setTimeout(() => {
+                currentIndex++;
+                loadQuestion();
+            }, 1200);
+        }
+
+        function handleWrongAnswer() {
+            wrongCount++;
+            const qObj = currentQuestions[currentIndex];
+            const allBtns = document.querySelectorAll(".option-btn");
+            allBtns.forEach(b => {
+                b.disabled = true;
+                if(b.innerText === qObj.options[qObj.answer]) {
+                    b.classList.add("correct");
+                }
+            });
+
+            setTimeout(() => {
+                currentIndex++;
+                loadQuestion();
+            }, 1200);
+        }
+
+        async function endGame() {
+            document.getElementById("game-screen").classList.add("hidden");
+            document.getElementById("result-screen").classList.remove("hidden");
+            document.getElementById("final-score").innerText = score;
+            document.getElementById("final-wrong").innerText = wrongCount;
+
+            try {
+                await addDoc(collection(db, COLLECTION_NAME), {
+                    name: playerName,
+                    correctCount: score,
+                    wrongCount: wrongCount,
+                    timestamp: serverTimestamp()
+                });
+            } catch (e) {
+                console.error("خطأ أثناء حفظ النتيجة: ", e);
+            }
+        }
+
+        window.openLeaderboard = async function() {
+            document.getElementById("welcome-screen").classList.add("hidden");
+            document.getElementById("result-screen").classList.add("hidden");
+            document.getElementById("leaderboard-screen").classList.remove("hidden");
+
+            const listEl = document.getElementById("leaderboard-list");
+            listEl.innerHTML = "<p>جاري التحميل...</p>";
+
+            try {
+                const q = query(
+                    collection(db, COLLECTION_NAME),
+                    orderBy("correctCount", "desc")
+                );
+                const querySnapshot = await getDocs(q);
+                
+                listEl.innerHTML = "";
+                let rank = 1;
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const item = document.createElement("div");
+                    item.className = "leaderboard-item";
+                    item.innerHTML = `<span>#${rank} - ${data.name}</span> <span>${data.correctCount} صح / ${data.wrongCount} خطأ</span>`;
+                    listEl.appendChild(item);
+                    rank++;
+                });
+                if(rank === 1) {
+                    listEl.innerHTML = "<p>لا توجد نتائج مسجلة بعد.</p>";
+                }
+            } catch (e) {
+                console.error(e);
+                listEl.innerHTML = "<p style='color:red;'>تنبيه: يتطلب هذا الاستعلام إنشاء Index في Firebase.</p>";
+            }
+        }
+
+        window.goHome = function() {
+            document.querySelectorAll(".screen").forEach(s => s.classList.add("hidden"));
+            document.getElementById("welcome-screen").classList.remove("hidden");
+            document.getElementById("player-name").value = "";
+            document.getElementById("admin-pin").value = "";
+        }
+
+        window.checkAdmin = function() {
+            const pin = document.getElementById("admin-pin").value;
+            if(pin === "2244") {
+                document.getElementById("admin-login").classList.add("hidden");
+                document.getElementById("admin-panel-content").classList.remove("hidden");
+                loadAdminScores();
+            } else {
+                alert("الرمز السري غير صحيح!");
+            }
+        }
+
+        window.openAdminModal = function() {
+            document.getElementById("welcome-screen").classList.add("hidden");
+            document.getElementById("admin-screen").classList.remove("hidden");
+        }
+
+        async function loadAdminScores() {
+            const adminListEl = document.getElementById("admin-scores-list");
+            adminListEl.innerHTML = "<p>جاري التحميل...</p>";
+            try {
+                const q = query(
+                    collection(db, COLLECTION_NAME),
+                    orderBy("correctCount", "desc")
+                );
+                const querySnapshot = await getDocs(q);
+                adminListEl.innerHTML = "";
+                querySnapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const item = document.createElement("div");
+                    item.className = "admin-item";
+                    item.innerHTML = `<span><b>${data.name}</b>: ${data.correctCount} صح / ${data.wrongCount} خطأ</span> <button onclick="deleteScore('${docSnap.id}')" style="background:#ff4d4d; color:white; border:none; padding:5px 10px; border-radius:5px; cursor:pointer;">حذف</button>`;
+                    adminListEl.appendChild(item);
+                });
+            } catch(e) {
+                adminListEl.innerHTML = "<p style='color:red;'>خطأ في جلب السجلات.</p>";
+            }
+        }
+
+        window.deleteScore = async function(id) {
+            if(confirm("هل أنت متأكد من حذف هذه النتيجة؟")) {
+                await deleteDoc(doc(db, COLLECTION_NAME, id));
+                loadAdminScores();
+            }
+        }
+    </script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Tajawal', sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .container { background: #1e293b; padding: 30px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); width: 100%; max-width: 500px; text-align: center; }
+        .screen { display: flex; flex-direction: column; gap: 20px; }
+        .hidden { display: none !important; }
+        h1 { color: #38bdf8; font-size: 24px; margin-bottom: 10px; }
+        input { padding: 12px; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 16px; text-align: center; width: 100%; }
+        button.main-btn { background: #0284c7; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; width: 100%; }
+        button.main-btn:hover { background: #0369a1; }
+        .options-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        .option-btn { background: #334155; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 15px; cursor: pointer; text-align: right; transition: 0.2s; }
+        .option-btn.hover:not(:disabled) { background: #475569; }
+        .option-btn.correct { background: #16a34a !important; }
+        .option-btn.wrong { background: #dc2626 !important; }
+        .stats-bar { display: flex; justify-content: space-between; font-size: 14px; color: #94a3b8; background: #0f172a; padding: 8px 15px; border-radius: 6px; }
+        .leaderboard-item, .admin-item { background: #334155; padding: 10px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
+        .admin-link { color: #64748b; font-size: 12px; cursor: pointer; margin-top: 15px; display: inline-block; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 1. شاشة البداية -->
+    <div id="welcome-screen" class="screen">
+        <h1>🏆 تحدي البريميرليج النخبوي</h1>
+        <p style="color: #94a3b8; font-size: 14px;">أجب على الـ 50 سؤالاً كاملاً واكتشف حصيلتك الدقيقة!</p>
+        <input type="text" id="player-name" placeholder="أدخل اسمك الكريم هنا..." maxlength="20">
+        <button class="main-btn" onclick="startGame()">بدء التحدي</button>
+        <button class="main-btn" style="background: #334155;" onclick="openLeaderboard()">لوحة الشرف العالمية</button>
+        <span class="admin-link" onclick="openAdminModal()">دخول المشرفين</span>
+    </div>
+
+    <!-- 2. شاشة اللعب -->
+    <div id="game-screen" class="screen hidden">
+        <div class="stats-bar">
+            <span>السؤال: <b id="current-q-num">1</b> / 50</span>
+            <span>الوقت المتبقي: <b id="time-left">15</b> ثانية</span>
+        </div>
+        <h2 id="question-text" style="font-size: 18px; min-height: 60px; display: flex; align-items: center; justify-content: center;">نص السؤال هنا</h2>
+        <div id="options-container" class="options-grid"></div>
+    </div>
+
+    <!-- 3. شاشة النتيجة النهائية -->
+    <div id="result-screen" class="screen hidden">
+        <h1>انتهى التحدي!</h1>
+        <p>إجابات صحيحة: <b id="final-score" style="color: #16a34a; font-size: 22px;">0</b> من 50</p>
+        <p>إجابات خاطئة: <b id="final-wrong" style="color: #dc2626; font-size: 22px;">0</b> من 50</p>
+        <button class="main-btn" onclick="openLeaderboard()">عرض لوحة الشرف</button>
+        <button class="main-btn" style="background: #334155;" onclick="goHome()">الرئيسية</button>
+    </div>
+
+    <!-- 4. شاشة لوحة الشرف -->
+    <div id="leaderboard-screen" class="screen hidden">
+        <h1>لوحة الشرف العالمية</h1>
+        <div id="leaderboard-list" style="max-height: 300px; overflow-y: auto; text-align: right;"></div>
+        <button class="main-btn" onclick="goHome()">الرئيسية</button>
+    </div>
+
+    <!-- 5. شاشة لوحة المشرفين -->
+    <div id="admin-screen" class="screen hidden">
+        <h1>لوحة تحكم المشرفين</h1>
+        <div id="admin-login">
+            <input type="password" id="admin-pin" placeholder="أدخل الرمز السري...">
+            <button class="main-btn" onclick="checkAdmin()">دخول</button>
+        </div>
+        <div id="admin-panel-content" class="hidden">
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 10px;">إدارة وحذف النتائج المسجلة:</p>
+            <div id="admin-scores-list" style="max-height: 250px; overflow-y: auto; text-align: right;"></div>
+        </div>
+        <button class="main-btn" style="background: #334155; margin-top: 10px;" onclick="goHome()">الرئيسية</button>
+    </div>
+</div>
+
+</body>
+</html>
